@@ -26,7 +26,7 @@ D = 151.3          # overall depth  (side view)
 H_BODY = 290.3     # body height up to the top shoulder face
 R_CORNER = 34.0    # plan-view corner radius of the body
 Z_SHOULDER = H_BODY - 72.3   # 218.0 : where the shoulder taper begins
-NECK_OFFSET_X = -55.0        # neck offset toward one corner (from front view)
+NECK_OFFSET_X = -72.0        # neck near the left corner (from top view)
 
 
 def rr_wire(w, d, r, z):
@@ -59,12 +59,55 @@ def build_body():
         (120.0,      W,     D,     R_CORNER),
         (Z_SHOULDER, W,     D,     R_CORNER),
         (238.0,      W,     D,     R_CORNER),
-        (262.0,      190.0, 140.0, 38.0),   # shoulder draws in
-        (280.0,      168.0, 120.0, 42.0),
-        (H_BODY,     146.0, 104.0, 46.0),   # top shoulder face
+        (258.0,      200.0, 148.0, 36.0),   # shoulder rounds over, stays wide
+        (276.0,      196.0, 140.0, 44.0),
+        (H_BODY,     188.0, 130.0, 50.0),   # top shoulder face (near full width)
     ]
     wires = [rr_wire(w, d, r, z) for (z, w, d, r) in sections]
     return cq.Workplane(obj=cq.Solid.makeLoft(wires, ruled=True))
+
+
+# handle plan-position (from the top view: grip bar right of the neck,
+# centred in depth). X runs along the 202.8 width, Y along the 151.3 depth.
+HANDLE_XA = -42.0      # left end of the grip (nearly touches the neck)
+HANDLE_XB = 72.0       # right end of the grip
+HANDLE_W_Y = 28.0      # grip bar width in the depth direction
+
+
+def build_handle(top_z):
+    """
+    Top carry handle: an arched grip strap bridging a finger opening.
+    Built as an almond-shaped side profile (two arcs) extruded across the
+    depth, so the buried thin ends anchor into the shoulder while the thick
+    centre forms the graspable bar.  Returns (handle_solid, opening_cutter).
+    """
+    xmid = 0.5 * (HANDLE_XA + HANDLE_XB)
+    za = top_z - 4.0           # arch ends, just buried in the top surface
+    inner_peak = top_z + 2.0   # underside of the grip crown
+    outer_peak = top_z + 8.0   # top of the grip crown (modest bulge)
+
+    profile = (
+        cq.Workplane("XZ")
+        .moveTo(HANDLE_XA, za)
+        .threePointArc((xmid, outer_peak), (HANDLE_XB, za))          # outer arch
+        .threePointArc((xmid, inner_peak), (HANDLE_XA, za))          # inner arch
+        .close()
+    )
+    handle = profile.extrude(HANDLE_W_Y / 2.0, both=True)
+    try:
+        handle = handle.edges("|X").fillet(4.0)
+    except Exception:
+        pass
+
+    # recessed finger pocket beneath the grip (cut into the shoulder first)
+    opening = (
+        cq.Workplane("XY").workplane(offset=top_z)
+        .center(xmid, 0)
+        .sketch().rect(HANDLE_XB - HANDLE_XA - 20.0, HANDLE_W_Y + 14.0)
+        .vertices().fillet(16.0).finalize()
+        .extrude(-34.0)
+    )
+    return handle, opening
 
 
 def helical_thread(radius, pitch, height, tri_size, z0):
@@ -174,6 +217,15 @@ def neck_bericap45():
 # ----------------------------------------------------------------------------
 def build_canister(neck_fn, out_name):
     body = build_body()
+
+    # --- top carry handle: recessed finger pocket bridged by a grip ----------
+    try:
+        handle, opening = build_handle(H_BODY)
+        body = body.cut(opening)      # cut the pocket first
+        body = body.union(handle)     # then bridge the grip over it
+    except Exception as e:
+        print("  handle skipped:", e)
+
     neck, neck_top_z, bore_d = neck_fn()
     model = body.union(neck)
 
@@ -186,13 +238,13 @@ def build_canister(neck_fn, out_name):
     )
     model = model.cut(bore)
 
-    # recessed label panels on front & back (R6.3)
+    # recessed label panel on front & back shoulder (76 wide, R6.3)
     try:
         front = (
             cq.Workplane("XZ").workplane(offset=-(D / 2.0))
-            .center(0, 150.0)
-            .sketch().rect(120.0, 150.0).vertices().fillet(6.3).finalize()
-            .extrude(2.0)
+            .center(0, 266.0)
+            .sketch().rect(76.0, 37.0).vertices().fillet(6.3).finalize()
+            .extrude(2.5)
         )
         model = model.cut(front)
         model = model.cut(front.mirror("XZ"))

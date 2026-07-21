@@ -59,14 +59,23 @@ faithful representation** of the principal geometry:
 
 - rounded-rectangle body lofted through the base, straight walls and the
   drawn-in top shoulder;
-- a **threaded neck** (helical thread) offset toward one corner, matching
-  the DIN 51 detail proportions;
-- recessed **label panels** (R 6.3) on the front and back faces;
+- a **threaded neck** (helical thread + base ratchet collar for the BERICAP)
+  positioned near the left top corner, matching the top-view layout;
+- a **top carry handle** — a grip bar bridging a recessed finger pocket,
+  set to the right of the neck and centred in depth, as per the top view;
+- recessed **label panel** (76 mm wide, R 6.3) on the front/back shoulder;
 - bored neck opening.
 
 It is delivered as a single watertight solid — suitable for visualisation,
 CAM/CAE reference and as a starting CAD body — rather than a hollow blow-
 moulded shell.
+
+### Cross-checked against the drawing
+
+The neck position, handle placement and body outline were verified by
+projecting the model's edges orthographically and **overlaying them on the
+top and front views** of the drawing (scaled 1:1 to the sheet), then
+adjusting the parameters until the outlines lined up.
 
 ## Regenerate
 
