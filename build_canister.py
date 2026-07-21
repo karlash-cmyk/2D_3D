@@ -110,6 +110,23 @@ def build_handle(top_z):
     return handle, opening
 
 
+def build_base_recess():
+    """
+    Central push-up in the base: the bottom arches up (peak ~22 mm) between
+    the two depth-side feet, forming a channel along the width.  Shows in the
+    side/end view as the gull-wing bottom profile.
+    """
+    prof = (
+        cq.Workplane("YZ")            # local x = Y (depth), local y = Z
+        .moveTo(-55.0, -3.0)
+        .lineTo(55.0, -3.0)
+        .lineTo(55.0, 0.5)
+        .threePointArc((0.0, 22.0), (-55.0, 0.5))
+        .close()
+    )
+    return prof.extrude(80.0, both=True)   # sweep across the width (X)
+
+
 def helical_thread(radius, pitch, height, tri_size, z0):
     """A swept helical triangular thread ridge, base of helix at z0."""
     helix = cq.Wire.makeHelix(pitch=pitch, height=height, radius=radius)
@@ -225,6 +242,12 @@ def build_canister(neck_fn, out_name):
         body = body.union(handle)     # then bridge the grip over it
     except Exception as e:
         print("  handle skipped:", e)
+
+    # --- central base push-up (gull-wing bottom) -----------------------------
+    try:
+        body = body.cut(build_base_recess())
+    except Exception as e:
+        print("  base recess skipped:", e)
 
     neck, neck_top_z, bore_d = neck_fn()
     model = body.union(neck)

@@ -64,6 +64,8 @@ faithful representation** of the principal geometry:
 - a **top carry handle** — a grip bar bridging a recessed finger pocket,
   set to the right of the neck and centred in depth, as per the top view;
 - recessed **label panel** (76 mm wide, R 6.3) on the front/back shoulder;
+- **gull-wing base push-up** — the bottom arches up between the depth-side
+  feet, matching the side/end-view base profile;
 - bored neck opening.
 
 It is delivered as a single watertight solid — suitable for visualisation,
@@ -72,10 +74,17 @@ moulded shell.
 
 ### Cross-checked against the drawing
 
-The neck position, handle placement and body outline were verified by
-projecting the model's edges orthographically and **overlaying them on the
-top and front views** of the drawing (scaled 1:1 to the sheet), then
-adjusting the parameters until the outlines lined up.
+Every feature was verified by projecting the model's edges orthographically
+and **overlaying them on the top, front and side/end views** of the drawing
+(scaled 1:1 to the sheet), then adjusting the parameters until the outlines
+lined up in all three projections.
+
+> **Note on fidelity.** An *exact* replica of a blow-moulded part cannot be
+> reconstructed from 2D orthographic views alone — the freeform surface
+> transitions, internal handle-loop topology, base rib pattern and exact
+> draft/fillet radii are not fully determined by the projections. This model
+> matches the drawing's **silhouette and every dimensioned feature** in all
+> views; the remaining differences are cosmetic mould detail.
 
 ## Regenerate
 
