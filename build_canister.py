@@ -2,40 +2,31 @@
 Parametric 3D model of the ARTIGIANA STAMPI / BERRY "TANICA DYNO" 5-6 L
 HDPE jerry can (drawing 240703A0), reconstructed from the 2D mould drawing.
 
-The drawing is a blow-moulded container with complex organic surfaces; this
-script produces a clean, dimensionally-faithful *representative* solid that
-matches the principal dimensions and features of the 6 L version:
+Generates the 6 L version body with either neck finish drawn on the sheet:
 
-  Overall envelope   : 202.8 (W) x 151.3 (D) x 302.7 (H) mm
-  Body height to top : 290.3 mm  (base 83 + middle 135 + shoulder 72.3)
-  Neck (DIN 51)      : outer flange dia 53, thread major dia ~45.4, ~27 tall
-  Recessed front/back label panels, rounded body corners, threaded neck.
+  * DIN 51        -> canister_240703A0_6L_DIN51.step
+  * 45 mm BERICAP -> canister_240703A0_6L_BERICAP45.step
 
-Output: canister_240703A0_6L.step  (AP214 STEP)
-Units : millimetres.
+Run:  python3 build_canister.py            (builds both)
+      python3 build_canister.py bericap    (BERICAP only)
+      python3 build_canister.py din51       (DIN 51 only)
+
+Units: millimetres.
 """
 
+import sys
 import math
 import cadquery as cq
 
 # ----------------------------------------------------------------------------
-# Key dimensions taken from drawing 240703A0 (6 LT VERSION)
+# Body dimensions from drawing 240703A0 (6 LT VERSION)
 # ----------------------------------------------------------------------------
 W = 202.8          # overall width  (front view)
 D = 151.3          # overall depth  (side view)
 H_BODY = 290.3     # body height up to the top shoulder face
 R_CORNER = 34.0    # plan-view corner radius of the body
-
-Z_SHOULDER = H_BODY - 72.3    # 218.0 : where the shoulder taper begins
-
-# Neck (DIN 51 detail)
-NECK_OD = 53.0
-NECK_THREAD_MAJ = 49.8
-NECK_THREAD_MIN = 45.4
-NECK_BORE = 40.8
-NECK_TOTAL_H = 27.0
-NECK_PROTRUDE = 302.7 - H_BODY  # 12.4 mm above the shoulder top face
-NECK_OFFSET_X = -55.0           # neck offset toward one corner
+Z_SHOULDER = H_BODY - 72.3   # 218.0 : where the shoulder taper begins
+NECK_OFFSET_X = -55.0        # neck offset toward one corner (from front view)
 
 
 def rr_wire(w, d, r, z):
@@ -58,108 +49,167 @@ def rr_wire(w, d, r, z):
     return wp.val()
 
 
-# ----------------------------------------------------------------------------
-# 1. Main body - lofted through rounded-rectangle cross sections
-# ----------------------------------------------------------------------------
-sections = [
-    (0.0,        174.0, 124.0, 24.0),   # tucked-in foot / bottom
-    (10.0,       194.0, 144.0, 32.0),   # rounded bottom edge
-    (22.0,       W,     D,     R_CORNER),  # full section reached
-    (30.0,       W,     D,     R_CORNER),  # -- straight wall --
-    (120.0,      W,     D,     R_CORNER),  # -- straight wall --
-    (Z_SHOULDER, W,     D,     R_CORNER),  # straight body up to shoulder
-    (238.0,      W,     D,     R_CORNER),  # shoulder start (still full)
-    (262.0,      190.0, 140.0, 38.0),   # shoulder draws in
-    (280.0,      168.0, 120.0, 42.0),
-    (H_BODY,     146.0, 104.0, 46.0),   # top shoulder face
-]
+def build_body():
+    """Loft the rounded-rectangle jerry-can body (returns a Workplane)."""
+    sections = [
+        (0.0,        174.0, 124.0, 24.0),   # tucked-in foot / bottom
+        (10.0,       194.0, 144.0, 32.0),   # rounded bottom edge
+        (22.0,       W,     D,     R_CORNER),
+        (30.0,       W,     D,     R_CORNER),
+        (120.0,      W,     D,     R_CORNER),
+        (Z_SHOULDER, W,     D,     R_CORNER),
+        (238.0,      W,     D,     R_CORNER),
+        (262.0,      190.0, 140.0, 38.0),   # shoulder draws in
+        (280.0,      168.0, 120.0, 42.0),
+        (H_BODY,     146.0, 104.0, 46.0),   # top shoulder face
+    ]
+    wires = [rr_wire(w, d, r, z) for (z, w, d, r) in sections]
+    return cq.Workplane(obj=cq.Solid.makeLoft(wires, ruled=True))
 
-wires = [rr_wire(w, d, r, z) for (z, w, d, r) in sections]
-body_solid = cq.Solid.makeLoft(wires, ruled=True)
 
-# cap the bottom and top so the loft is a closed solid
-body = cq.Workplane(obj=body_solid)
-
-# ----------------------------------------------------------------------------
-# 2. Neck with helical thread
-# ----------------------------------------------------------------------------
-neck_top_z = H_BODY + NECK_PROTRUDE          # 302.7
-neck_base_z = neck_top_z - NECK_TOTAL_H       # embed base into shoulder
-
-neck = (
-    cq.Workplane("XY").workplane(offset=neck_base_z)
-    .circle(NECK_OD / 2.0).extrude(3.0)          # bottom flange
-)
-neck = (
-    neck.faces(">Z").workplane()
-    .circle(NECK_THREAD_MAJ / 2.0).extrude(NECK_TOTAL_H - 3.0)
-)
-
-# Helical thread ridge swept around the neck barrel
-pitch = 5.2
-thread_len = NECK_TOTAL_H - 6.0
-try:
-    helix = cq.Wire.makeHelix(pitch=pitch, height=thread_len,
-                              radius=NECK_THREAD_MIN / 2.0)
+def helical_thread(radius, pitch, height, tri_size, z0):
+    """A swept helical triangular thread ridge, base of helix at z0."""
+    helix = cq.Wire.makeHelix(pitch=pitch, height=height, radius=radius)
     path = cq.Workplane(obj=helix)
     thread = (
         cq.Workplane("XZ")
-        .center(NECK_THREAD_MIN / 2.0, 0)
-        .polygon(3, 3.4)
+        .center(radius, 0)
+        .polygon(3, tri_size)
         .sweep(path, isFrenet=True)
     )
-    thread = thread.translate((0, 0, neck_base_z + 3.0))
-    neck = neck.union(thread)
-except Exception as e:
-    print("thread sweep skipped:", e)
+    return thread.translate((0, 0, z0))
 
-neck = neck.translate((NECK_OFFSET_X, 0, 0))
 
-# ----------------------------------------------------------------------------
-# 3. Assemble, then bore the neck opening
-# ----------------------------------------------------------------------------
-model = body.union(neck)
-
-bore = (
-    cq.Workplane("XY").workplane(offset=neck_top_z + 1.0)
-    .center(NECK_OFFSET_X, 0)
-    .circle(NECK_BORE / 2.0)
-    .extrude(-(NECK_TOTAL_H + 30.0))
-)
-model = model.cut(bore)
-
-# ----------------------------------------------------------------------------
-# 4. Recessed rectangular label panels on the front & back faces
-# ----------------------------------------------------------------------------
-label_w, label_h, label_depth = 120.0, 150.0, 2.0
-label_center_z = 150.0
-try:
-    front = (
-        cq.Workplane("XZ").workplane(offset=-(D / 2.0))
-        .center(0, label_center_z)
-        .sketch().rect(label_w, label_h).vertices().fillet(6.3).finalize()
-        .extrude(label_depth)
+def ratchet_ring(root_d, crest_d, height, n_teeth, z0):
+    """
+    Anti-rotation ratchet collar as a toothed (sawtooth) extrusion.
+    root_d / crest_d are the tooth root / crest diameters.
+    """
+    r_root = root_d / 2.0
+    r_crest = crest_d / 2.0
+    pts = []
+    for i in range(n_teeth):
+        a0 = 2 * math.pi * i / n_teeth             # root, start of tooth
+        a1 = 2 * math.pi * (i + 0.7) / n_teeth     # crest, then sharp drop
+        pts.append((r_root * math.cos(a0), r_root * math.sin(a0)))
+        pts.append((r_crest * math.cos(a1), r_crest * math.sin(a1)))
+    ring = (
+        cq.Workplane("XY").workplane(offset=z0)
+        .polyline(pts).close()
+        .extrude(height)
     )
-    model = model.cut(front)
-    model = model.cut(front.mirror("XZ"))
-except Exception as e:
-    print("label recess skipped:", e)
+    return ring
+
 
 # ----------------------------------------------------------------------------
-# 5. Soften the vertical body edges
+# Neck finishes
 # ----------------------------------------------------------------------------
-try:
-    model = model.edges("|Z").fillet(1.2)
-except Exception as e:
-    print("global fillet skipped:", e)
+def neck_din51():
+    """DIN 51 neck: flange OD 53, thread major ~49.8/minor 45.4, bore 40.8."""
+    p = dict(bore=40.8, total_h=27.0)
+    # mount so the neck top reaches the drawing's overall height of 302.7 mm
+    base_z = 302.7 - p["total_h"]     # 275.7 : lower part sits inside shoulder
+    neck = (
+        cq.Workplane("XY").workplane(offset=base_z)
+        .circle(53.0 / 2.0).extrude(3.0)                      # flange
+    )
+    neck = neck.faces(">Z").workplane().circle(49.8 / 2.0).extrude(24.0)
+    try:
+        thread = helical_thread(radius=45.4 / 2.0, pitch=5.2, height=21.0,
+                                tri_size=3.4, z0=base_z + 3.0)
+        neck = neck.union(thread)
+    except Exception as e:
+        print("  din51 thread skipped:", e)
+    top_z = base_z + p["total_h"]
+    return neck.translate((NECK_OFFSET_X, 0, 0)), top_z, p["bore"]
+
+
+def neck_bericap45():
+    """
+    45 mm BERICAP neck:
+      thread crest Ø45.2, root Ø41.4, pitch 4, thread height 19.6, start 6.35
+      barrel wall Ø40.8, bore Ø35.7, 1x45 top chamfer
+      base ratchet collar: crest Ø57.1, root Ø50.8
+    """
+    bore = 35.7
+    barrel_d = 40.8
+    total_h = 25.8
+    base_z = H_BODY - 4.0        # embed 4 mm into shoulder
+
+    # ratchet collar at the base (anti-rotation)
+    collar_h = 6.0
+    neck = ratchet_ring(root_d=50.8, crest_d=57.1, height=collar_h,
+                        n_teeth=18, z0=base_z)
+
+    # barrel Ø40.8 up the full neck height
+    barrel = (
+        cq.Workplane("XY").workplane(offset=base_z)
+        .circle(barrel_d / 2.0).extrude(total_h)
+    )
+    neck = neck.union(barrel)
+
+    # helical thread: pitch 4, crest Ø45.2 (ridge 2.2 beyond barrel radius)
+    try:
+        thread = helical_thread(radius=barrel_d / 2.0, pitch=4.0, height=19.6,
+                                tri_size=4.4, z0=base_z + 3.0)
+        neck = neck.union(thread)
+    except Exception as e:
+        print("  bericap thread skipped:", e)
+
+    # 1 x 45 top chamfer on the outer rim
+    try:
+        neck = neck.faces(">Z").edges(cq.selectors.RadiusNthSelector(-1)).chamfer(1.0)
+    except Exception:
+        try:
+            neck = neck.faces(">Z").chamfer(1.0)
+        except Exception as e:
+            print("  bericap chamfer skipped:", e)
+
+    top_z = base_z + total_h
+    return neck.translate((NECK_OFFSET_X, 0, 0)), top_z, bore
+
 
 # ----------------------------------------------------------------------------
-# Export
+# Assemble a full canister for a given neck finish
 # ----------------------------------------------------------------------------
-out = "canister_240703A0_6L.step"
-cq.exporters.export(model, out)
-print("Exported", out)
+def build_canister(neck_fn, out_name):
+    body = build_body()
+    neck, neck_top_z, bore_d = neck_fn()
+    model = body.union(neck)
 
-bb = model.val().BoundingBox()
-print(f"Bounding box  X:{bb.xlen:.1f}  Y:{bb.ylen:.1f}  Z:{bb.zlen:.1f}")
-print(f"Volume       : {model.val().Volume()/1000.0:.1f} cm^3")
+    # bore the neck opening
+    bore = (
+        cq.Workplane("XY").workplane(offset=neck_top_z + 1.0)
+        .center(NECK_OFFSET_X, 0)
+        .circle(bore_d / 2.0)
+        .extrude(-(neck_top_z - Z_SHOULDER + 10.0))
+    )
+    model = model.cut(bore)
+
+    # recessed label panels on front & back (R6.3)
+    try:
+        front = (
+            cq.Workplane("XZ").workplane(offset=-(D / 2.0))
+            .center(0, 150.0)
+            .sketch().rect(120.0, 150.0).vertices().fillet(6.3).finalize()
+            .extrude(2.0)
+        )
+        model = model.cut(front)
+        model = model.cut(front.mirror("XZ"))
+    except Exception as e:
+        print("  label recess skipped:", e)
+
+    cq.exporters.export(model, out_name)
+    bb = model.val().BoundingBox()
+    print(f"Exported {out_name}")
+    print(f"  envelope  {bb.xlen:.1f} x {bb.ylen:.1f} x {bb.zlen:.1f} mm"
+          f"   volume {model.val().Volume()/1000.0:.0f} cm^3")
+    return model
+
+
+if __name__ == "__main__":
+    which = sys.argv[1].lower() if len(sys.argv) > 1 else "both"
+    if which in ("both", "din51"):
+        build_canister(neck_din51, "canister_240703A0_6L_DIN51.step")
+    if which in ("both", "bericap", "bericap45"):
+        build_canister(neck_bericap45, "canister_240703A0_6L_BERICAP45.step")
