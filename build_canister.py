@@ -181,7 +181,7 @@ def neck_din51():
     except Exception as e:
         print("  din51 thread skipped:", e)
     top_z = base_z + p["total_h"]
-    return neck.translate((NECK_OFFSET_X, 0, 0)), top_z, p["bore"]
+    return neck.translate((NECK_OFFSET_X, 0, 0)), top_z, p["bore"], None
 
 
 def neck_bericap45():
@@ -194,7 +194,8 @@ def neck_bericap45():
     bore = 35.7
     barrel_d = 40.8
     total_h = 25.8
-    base_z = H_BODY - 4.0        # embed 4 mm into shoulder
+    well_depth = 12.0
+    base_z = H_BODY - well_depth   # ratchet collar seats on the well floor
 
     # ratchet collar at the base (anti-rotation)
     collar_h = 6.0
@@ -225,8 +226,17 @@ def neck_bericap45():
         except Exception as e:
             print("  bericap chamfer skipped:", e)
 
+    # recessed well around the neck: the shoulder dips into a circular pocket
+    # from which the neck rises (matches the concentric contours in the plan)
+    well = (
+        cq.Workplane("XY").workplane(offset=H_BODY + 1.0)
+        .circle(72.0 / 2.0)
+        .extrude(-(well_depth + 1.0))
+        .translate((NECK_OFFSET_X, 0, 0))
+    )
+
     top_z = base_z + total_h
-    return neck.translate((NECK_OFFSET_X, 0, 0)), top_z, bore
+    return neck.translate((NECK_OFFSET_X, 0, 0)), top_z, bore, well
 
 
 # ----------------------------------------------------------------------------
@@ -249,7 +259,12 @@ def build_canister(neck_fn, out_name):
     except Exception as e:
         print("  base recess skipped:", e)
 
-    neck, neck_top_z, bore_d = neck_fn()
+    neck, neck_top_z, bore_d, neck_well = neck_fn()
+    if neck_well is not None:
+        try:
+            body = body.cut(neck_well)      # recess the well before seating neck
+        except Exception as e:
+            print("  neck well skipped:", e)
     model = body.union(neck)
 
     # bore the neck opening

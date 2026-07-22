@@ -61,6 +61,8 @@ faithful representation** of the principal geometry:
   drawn-in top shoulder;
 - a **threaded neck** (helical thread + base ratchet collar for the BERICAP)
   positioned near the left top corner, matching the top-view layout;
+- a **recessed neck well** — the shoulder dips into a circular pocket from
+  which the neck rises, matching the concentric contours in the plan;
 - a **top carry handle** — a grip bar bridging a recessed finger pocket,
   set to the right of the neck and centred in depth, as per the top view;
 - recessed **label panel** (76 mm wide, R 6.3) on the front/back shoulder;
